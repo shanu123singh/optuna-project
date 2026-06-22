@@ -1,0 +1,10 @@
+stages:
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - data/House Price Prediction Dataset.csv
+      - requirements.txt
+
+    outs:
+      - model/house_price_model.joblib

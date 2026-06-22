@@ -12,30 +12,42 @@ from xgboost import XGBRegressor
 import optuna
 
 # -------------------------------
-# PATH FIX (100% WORKING)
+# PATHS
 # -------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-DATA_PATH = os.path.join(BASE_DIR, "data", "House Price Prediction Dataset.csv")
-MODEL_DIR = os.path.join(BASE_DIR, "model")
+DATA_PATH = os.path.join(
+    BASE_DIR,
+    "data",
+    "House Price Prediction Dataset.csv"
+)
 
-# Create model folder if not exists
+MODEL_DIR = os.path.join(BASE_DIR, "model")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MODEL_PATH = os.path.join(MODEL_DIR, "house_price_model.joblib")
+MODEL_PATH = os.path.join(
+    MODEL_DIR,
+    "house_price_model.joblib"
+)
 
 # -------------------------------
-# DEBUG CHECK (IMPORTANT)
+# DEBUG
 # -------------------------------
 print("Dataset path:", DATA_PATH)
 print("File exists:", os.path.exists(DATA_PATH))
+
+if not os.path.exists(DATA_PATH):
+    raise FileNotFoundError(
+        f"Dataset not found at: {DATA_PATH}"
+    )
 
 # -------------------------------
 # LOAD DATA
 # -------------------------------
 df = pd.read_csv(DATA_PATH)
 
-df = df.drop("Id", axis=1)
+if "Id" in df.columns:
+    df = df.drop("Id", axis=1)
 
 X = df.drop("Price", axis=1)
 y = df["Price"]
@@ -45,48 +57,85 @@ y = df["Price"]
 # -------------------------------
 ct = ColumnTransformer(
     transformers=[
-        ('ohe', OneHotEncoder(drop='first', handle_unknown='ignore'), ['Condition']),
-        ('oe', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1),
-         ['Location', 'Garage'])
+        (
+            "ohe",
+            OneHotEncoder(
+                drop="first",
+                handle_unknown="ignore"
+            ),
+            ["Condition"]
+        ),
+        (
+            "oe",
+            OrdinalEncoder(
+                handle_unknown="use_encoded_value",
+                unknown_value=-1
+            ),
+            ["Location", "Garage"]
+        )
     ],
-    remainder='passthrough'
+    remainder="passthrough"
 )
 
 X_transformed = ct.fit_transform(X)
 
 # -------------------------------
-# TRAIN TEST SPLIT
+# SPLIT
 # -------------------------------
 X_train, X_test, y_train, y_test = train_test_split(
-    X_transformed, y, test_size=0.2, random_state=42
+    X_transformed,
+    y,
+    test_size=0.2,
+    random_state=42
 )
 
 # -------------------------------
 # SCALING
 # -------------------------------
 scaler = StandardScaler()
+
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # -------------------------------
-# OPTUNA
+# OPTUNA OBJECTIVE
 # -------------------------------
 def objective(trial):
 
-    model_name = trial.suggest_categorical("regressor", ["XGB", "GBR"])
+    model_name = trial.suggest_categorical(
+        "regressor",
+        ["XGB", "GBR"]
+    )
+
+    params = {
+        "n_estimators": trial.suggest_int(
+            "n_estimators",
+            50,
+            200
+        ),
+        "max_depth": trial.suggest_int(
+            "max_depth",
+            3,
+            8
+        ),
+        "learning_rate": trial.suggest_float(
+            "learning_rate",
+            0.01,
+            0.2
+        )
+    }
 
     if model_name == "GBR":
+
         model = GradientBoostingRegressor(
-            n_estimators=trial.suggest_int("n_estimators", 50, 200),
-            max_depth=trial.suggest_int("max_depth", 3, 8),
-            learning_rate=trial.suggest_float("lr", 0.01, 0.2),
+            **params,
             random_state=42
         )
+
     else:
+
         model = XGBRegressor(
-            n_estimators=trial.suggest_int("n_estimators", 50, 200),
-            max_depth=trial.suggest_int("max_depth", 3, 8),
-            learning_rate=trial.suggest_float("lr", 0.01, 0.2),
+            **params,
             verbosity=0,
             random_state=42
         )
@@ -102,41 +151,74 @@ def objective(trial):
     return -score
 
 
+# -------------------------------
+# OPTUNA SEARCH
+# -------------------------------
 study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=20)
 
-print("Best Params:", study.best_params)
+study.optimize(
+    objective,
+    n_trials=20
+)
+
+print("\nBest Params:")
+print(study.best_params)
 
 # -------------------------------
 # FINAL MODEL
 # -------------------------------
 best = study.best_params.copy()
+
 model_type = best.pop("regressor")
 
 if model_type == "GBR":
-    model = GradientBoostingRegressor(**best, random_state=42)
-else:
-    model = XGBRegressor(**best, verbosity=0, random_state=42)
 
-model.fit(X_train_scaled, y_train)
+    model = GradientBoostingRegressor(
+        **best,
+        random_state=42
+    )
+
+else:
+
+    model = XGBRegressor(
+        **best,
+        verbosity=0,
+        random_state=42
+    )
 
 # -------------------------------
-# EVALUATION
+# TRAIN
+# -------------------------------
+model.fit(
+    X_train_scaled,
+    y_train
+)
+
+# -------------------------------
+# EVALUATE
 # -------------------------------
 y_pred = model.predict(X_test_scaled)
 
-mse = mean_squared_error(y_test, y_pred)
+mse = mean_squared_error(
+    y_test,
+    y_pred
+)
+
 rmse = np.sqrt(mse)
 
-print("RMSE:", rmse)
+print(f"\nRMSE: {rmse:.4f}")
 
 # -------------------------------
-# SAVE MODEL (FIXED)
+# SAVE MODEL
 # -------------------------------
-joblib.dump({
-    "model": model,
-    "scaler": scaler,
-    "column_transformer": ct
-}, MODEL_PATH)
+joblib.dump(
+    {
+        "model": model,
+        "scaler": scaler,
+        "column_transformer": ct
+    },
+    MODEL_PATH
+)
 
-print("✅ Model saved successfully at:", MODEL_PATH)
+print("\n✅ Model saved successfully")
+print("Location:", MODEL_PATH)
