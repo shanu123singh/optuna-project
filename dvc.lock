@@ -1,0 +1,22 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: python train.py
+    deps:
+    - path: data/House Price Prediction Dataset.csv
+      hash: md5
+      md5: 2911f2d79a55ab8776b2949e35d79681
+      size: 91297
+    - path: requirements.txt
+      hash: md5
+      md5: 5483edc835971231e077d41cef443631
+      size: 114
+    - path: train.py
+      hash: md5
+      md5: 47ee4c838fc17e5e6e39cda599abf568
+      size: 4694
+    outs:
+    - path: model/house_price_model.joblib
+      hash: md5
+      md5: 4459eebf67cfa7e8c16d9a067d506c66
+      size: 139493

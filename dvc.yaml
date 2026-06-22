@@ -8,3 +8,4 @@ stages:
 
     outs:
       - model/house_price_model.joblib
+    
